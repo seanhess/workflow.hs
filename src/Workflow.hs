@@ -89,6 +89,11 @@ storeResult a = Workflow $ \_ -> print a
 --   print a
 --   pure a
 
+-- this works with ANY flow?
+-- why is that any better?
+-- it lets me specify sily things
+-- don't need it. Specialize!
+-- figure out another way to draw the graph
 workflow :: Flow Calibrate m => m Final
 workflow = do
   sa <- step Begin
