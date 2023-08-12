@@ -46,16 +46,19 @@ type instance Something (SolarAtlas -> Calibrate Wavelengths) = Int
 -- Can I model a network in the type system?
 -- We need a better model
 data Dag inp a where
-  Start :: String -> Dag () a
+  Dep0 :: String -> Dag () a
   Dep1 :: String -> (Dag x a) -> Dag a b
   Dep2 :: String -> (Dag x a, Dag y b) -> Dag (a, b) c
 
 -- Yeah this worked!
 network :: Dag Final Final
 network =
-  let start = Start "Start" :: Dag () ()
-      wavelengths = Dep1 "Wavelengths" solarAtlas :: Dag SolarAtlas Wavelengths
-      solarAtlas = Dep1 "SolarAtlas" start :: Dag () SolarAtlas
-      position = Dep1 "Position" start :: Dag () Position
+  let wavelengths = Dep1 "Wavelengths" solarAtlas :: Dag SolarAtlas Wavelengths
+      solarAtlas = Dep0 "SolarAtlas" :: Dag () SolarAtlas
+      position = Dep0 "Position" :: Dag () Position
       finalize = Dep2 "Finalize" (wavelengths, position) :: Dag (Wavelengths, Position) Final
    in Dep1 "End" finalize
+
+data Comp inp a b = Dag inp a :> Dag a b
+
+-- but we can't compose two at once, can we.... make it a .... list!
