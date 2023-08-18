@@ -64,6 +64,8 @@ library
         Types,
         JustFunctions,
         FindAType,
+        Applicatives,
+        TaglessFinal,
 
     -- Modules included in this library but not exported.
     -- other-modules:
