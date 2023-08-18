@@ -1,20 +1,14 @@
 module FindAType where
 
-import Data.Proxy
+import Types
 
 -- IDEA: We are looking for a particular type, given a dataset
+-- we are producing a bunch of resources
+-- the last one who needs it gets it!
 
 class Flow a b r where
   -- probably has to work for ALL monads
   flow :: a -> r -> IO b
-
-data Dataset
-
-data Wavelengths = Wavelengths [Int]
-
-data Position = Position
-
-data SolarAtlas = SolarAtlas
 
 -- how do we know which one is which??
 instance Flow SolarAtlas Wavelengths Dataset where
@@ -26,7 +20,7 @@ instance Flow () Position Dataset where
   flow = undefined
 
 loadWavelengths :: SolarAtlas -> Dataset -> IO Wavelengths
-loadWavelengths _ _ = pure $ Wavelengths []
+loadWavelengths _ _ = pure Wavelengths
 
 loadPosition :: Dataset -> IO Position
 loadPosition _ = pure Position

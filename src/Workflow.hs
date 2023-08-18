@@ -44,14 +44,10 @@ runCal (Finalize wl pos) _ = pure $ Final wl pos
 runCalWorkflow :: Calibrate a -> Workflow Dataset a
 runCalWorkflow c = Workflow (runCal c)
 
--- Step is specialized to my function, can I make it a class?
--- step :: Calibrate a -> Workflow Dataset a
--- step c = Workflow $ \r -> runCal c r
+-- >>> add 2 3
+add :: Int -> Int -> Int
+add a b = a + b
 
-class Monad m => Flow dag m where
-  step :: dag a -> m a
-
--- I have to implement it FOR MY TYPE here
 -- which prevents me from doing anything specific to workflow
 instance Flow Calibrate (Workflow Dataset) where
   step c = Workflow $ \r -> runCal c r

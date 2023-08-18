@@ -1,4 +1,5 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 
 module JustFunctions where
@@ -32,10 +33,6 @@ workflow = do
 
 ------------------------------------
 
--- How can I contextualize the dependencies. Read them. Know them?
---
--- you can't get the 'TYPE"
---
 type family Something a :: b
 
 type instance Something (Calibrate SolarAtlas) = String
@@ -59,6 +56,20 @@ network =
       finalize = Dep2 "Finalize" (wavelengths, position) :: Dag (Wavelengths, Position) Final
    in Dep1 "End" finalize
 
-data Comp inp a b = Dag inp a :> Dag a b
+-- data Comp inp a b = Dag inp a :> Dag a b
 
 -- but we can't compose two at once, can we.... make it a .... list!
+--
+data Dag2 (inp :: [Type]) out where
+  Start :: Dag2 '[] ()
+  Node :: Dag2 inp out
+  (:>) :: Dag2 inp a -> Dag2 (a : as) out -> Dag2 inp out
+
+wvls :: Dag2 (SolarAtlas : as) Wavelengths
+wvls = Node
+
+slrat :: Dag2 '[] SolarAtlas
+slrat = Node
+
+test :: Dag2 '[] Wavelengths
+test = slrat :> wvls
