@@ -1,32 +1,54 @@
 module FindAType where
 
-import Types
+import Control.Monad.Writer.Strict
+import Data.Proxy
 
--- IDEA: We are looking for a particular type, given a dataset
--- we are producing a bunch of resources
--- the last one who needs it gets it!
+-- TODO: not the real type. Ignore
+newtype Flow a = Flow {runFlow :: IO a}
+  deriving (Functor, Applicative, Monad)
 
-class Flow a b r where
-  -- probably has to work for ALL monads
-  flow :: a -> r -> IO b
+newtype A = A String
+newtype B = B Int
+newtype C = C String
 
--- how do we know which one is which??
-instance Flow SolarAtlas Wavelengths Dataset where
-  flow :: SolarAtlas -> Dataset -> IO Wavelengths
-  flow = loadWavelengths
+-- Typeclass! Is how we go from TYPE -> Function
+class Fetch a m where
+  fetch :: m a
+  nodeName :: Proxy a -> m String
 
-instance Flow () Position Dataset where
-  flow :: () -> Dataset -> IO Position
-  flow = undefined
+instance Monad m => Fetch A m where
+  fetch = taskA
+  nodeName _ = pure "A"
 
-loadWavelengths :: SolarAtlas -> Dataset -> IO Wavelengths
-loadWavelengths _ _ = pure Wavelengths
+instance Monad m => Fetch B m where
+  fetch = taskB
+  nodeName _ = pure "B"
 
-loadPosition :: Dataset -> IO Position
-loadPosition _ = pure Position
+instance Monad m => Fetch C m where
+  fetch = taskC
+  nodeName _ = pure "C"
 
-workflow :: Dataset -> IO (Wavelengths, Position)
-workflow ds = do
-  wl <- flow SolarAtlas ds
-  ps <- flow () ds
-  pure (wl, ps)
+-- do these definitions expect me to have monadIO
+-- when do I run the actual tass?
+taskA :: (Monad m) => m A
+taskA = do
+  pure $ A "Hello"
+
+taskB :: (Monad m) => m B
+taskB = do
+  A s <- fetch @A
+  pure $ B $ length s
+
+taskC :: (Monad m) => m C
+taskC = do
+  A s <- fetch @A
+  B l <- fetch @B
+  pure $ C $ "The length of " <> s <> " is " <> show l
+
+test :: IO ()
+test = do
+  C c <- runFlow taskC
+  putStrLn c
+
+newtype Graph a = Graph (Writer [String] a)
+  deriving (Functor, Applicative, Monad)
