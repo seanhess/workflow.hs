@@ -1,12 +1,13 @@
-{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DerivingVia #-}
 
 module SimpleCustom where
 
+import Control.Exception (SomeException, bracket, catch, throwIO)
 import Control.Monad.Identity (Identity (..))
-import Control.Monad.Reader
+
+-- import Control.Monad.Reader
 import Control.Monad.Writer.Strict
 import Debug.Trace
 
@@ -14,8 +15,20 @@ import Debug.Trace
 import Data.Proxy
 import GHC.Generics hiding (C, D)
 
-newtype Pipeline r a = Pipeline {runPipeline :: ReaderT r IO a}
-  deriving newtype (Functor, Applicative, Monad, MonadReader r)
+newtype Pipeline r s a = Pipeline {runPipeline :: r -> s -> IO (a, s)}
+  deriving (Functor)
+
+instance Applicative (Pipeline r s) where
+  pure a = Pipeline (\_ s -> return (a, s))
+  mf <*> ma = Pipeline $ \r s -> do
+    (f, s2) <- runPipeline mf r s
+    (a, s3) <- runPipeline ma r s2
+    pure (f a, s3)
+
+instance Monad (Pipeline r s) where
+  ma >>= fmb = Pipeline $ \r s -> do
+    (a, s2) <- runPipeline ma r s
+    runPipeline (fmb a) r s2
 
 newtype Network a = Network {runNetwork :: Writer [(String, String)] a}
   deriving newtype (Functor, Applicative, Monad, MonadWriter [(String, String)])
@@ -112,14 +125,30 @@ instance Flow Dataset Network where
     -- if necessary we could use defaults instead
     pure $ error "Network should not evaluate values"
 
--- pure Proxy
-
-instance Flow Dataset (Pipeline Dataset) where
-  -- TODO: exception catching
+instance Flow Dataset (Pipeline Dataset s) where
+  -- TODO: exception catching. I want to crash the FLOW, not the entire program. Maybe I should move the handler
   -- TODO: caching, customizable store... Can use state easily. Hashable...
-  run :: forall a i. (Node a, Node i) => (i -> Task Dataset a) -> (i -> Pipeline Dataset a)
-  run t i = Pipeline $ ReaderT $ \ds -> do
-    runTask (t i) ds
+  run :: forall a i. (Node a, Node i) => (i -> Task Dataset a) -> (i -> Pipeline Dataset s a)
+  run t i = Pipeline $ \ds s -> do
+    putStrLn $ "RUNNING: " <> mconcat (nodeName @a Proxy)
+    -- mc <- cached @s Proxy s
+    -- case mc of
+    --   Just c -> return (c, s)
+    --   Nothing -> do
+    res <- catch @SomeException (execute ds) handler
+    return (res, s)
+   where
+    execute :: Dataset -> IO a
+    execute ds = do
+      runTask (t i) ds
+
+    handler ex = do
+      putStrLn "CAUGHT!"
+      throwIO ex
+
+-- erm. no... this should be in pipeline
+-- should probably do very little work in `run`?
+-- or in the monad instance? No it's hard to add constraints there
 
 dataset :: Task Dataset Dataset
 dataset = Task $ \ds -> pure ds
@@ -149,7 +178,7 @@ test = do
 
   print deps
 
-  let pipe = workflow :: Pipeline Dataset Final
-  res <- runReaderT (runPipeline pipe) Dataset
+  let pipe = workflow :: Pipeline Dataset () Final
+  res <- runPipeline pipe Dataset ()
   print res
   pure ()
