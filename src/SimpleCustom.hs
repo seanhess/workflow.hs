@@ -1,10 +1,10 @@
 module SimpleCustom where
 
 import Control.Monad.Writer.Strict
-import Data.List (permutations)
+import Data.Kind
 import Data.Proxy
 
-newtype Custom a = Custom {runCustom :: (IO a)}
+newtype Custom a = Custom {runCustom :: IO a}
   deriving (Functor, Applicative, Monad)
 
 newtype Network a = Network {runNetwork :: Writer [(String, String)] a}
@@ -38,17 +38,25 @@ instance Node () where
   nodeName _ = []
 
 instance (Node a, Node b) => Node (a, b) where
-  -- nodeName :: forall a b. Proxy (a, b) -> [String]
-  nodeName _ = mconcat $ [nodeName @a Proxy, nodeName @b Proxy]
+  nodeName _ = mconcat [nodeName @a Proxy, nodeName @b Proxy]
 
--- | Just generate a graph!
+-- I don't love this...it's almost good
 workflow :: forall m f. (Flow m f) => m (f (A, D))
 workflow = do
-  a <- task runA (pure () :: f ())
-  b <- task runB a
-  c <- task runC a
-  d <- task runD ((,) <$> b <*> c)
-  pure $ (,) <$> a <*> d
+  a <- task0 runA
+  b <- task1 runB a
+  c <- task1 runC a
+  d <- task2 runD b c
+  pure $ _ (a, d)
+
+task0 :: (Node a, Flow m f) => IO a -> m (f a)
+task0 t = task (const t) (pure ())
+
+task1 :: (Node a, Node i, Flow m f) => (i -> IO a) -> (f i -> m (f a))
+task1 = task
+
+task2 :: (Node a, Node i, Node v, Flow m f) => (i -> v -> IO a) -> f i -> f v -> m (f a)
+task2 t fi fv = task (uncurry t) $ (,) <$> fi <*> fv
 
 class (Monad m, Applicative f) => Flow m f where
   task :: (Node a, Node i) => (i -> IO a) -> (f i -> m (f a))
@@ -61,9 +69,13 @@ instance Flow Network Proxy where
     tell $ [(ni, na) | na <- adp, ni <- idp]
     pure Proxy
 
--- it's our job to return an "a"
+type family Input a :: Type
+type instance Input (IO a) = ()
+type instance Input (i -> IO a) = i
+type instance Input (i1 -> i2 -> IO a) = (i1, i2)
 
-runA :: () -> IO A
+-- The tasks are sane!
+runA :: IO A
 runA = undefined
 
 runB :: A -> IO B
@@ -72,7 +84,7 @@ runB = undefined
 runC :: A -> IO C
 runC = undefined
 
-runD :: (B, C) -> IO D
+runD :: B -> C -> IO D
 runD = undefined
 
 test :: IO ()
