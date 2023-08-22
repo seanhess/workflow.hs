@@ -1,5 +1,8 @@
+{-# LANGUAGE ApplicativeDo #-}
+
 module SimpleCustom where
 
+import Control.Monad.Identity (Identity (..))
 import Control.Monad.Writer.Strict
 import Data.Kind
 import Data.Proxy
@@ -40,14 +43,13 @@ instance Node () where
 instance (Node a, Node b) => Node (a, b) where
   nodeName _ = mconcat [nodeName @a Proxy, nodeName @b Proxy]
 
--- I don't love this...it's almost good
-workflow :: forall m f. (Flow m f) => m (f (A, D))
+workflow :: forall m f. (Flow m f) => m (f ())
 workflow = do
-  a <- task0 runA
-  b <- task1 runB a
-  c <- task1 runC a
-  d <- task2 runD b c
-  pure $ _ (a, d)
+  ta <- task0 runA
+  tb <- task1 runB ta
+  tc <- task1 runC ta
+  td <- task2 runD tb tc
+  task2 runEnd ta td
 
 task0 :: (Node a, Flow m f) => IO a -> m (f a)
 task0 t = task (const t) (pure ())
@@ -69,6 +71,12 @@ instance Flow Network Proxy where
     tell $ [(ni, na) | na <- adp, ni <- idp]
     pure Proxy
 
+instance Flow IO Identity where
+  task :: forall a i. (Node a, Node i) => (i -> IO a) -> (Identity i -> IO (Identity a))
+  task t (Identity i) = do
+    a <- t i
+    pure $ Identity a
+
 type family Input a :: Type
 type instance Input (IO a) = ()
 type instance Input (i -> IO a) = i
@@ -76,19 +84,29 @@ type instance Input (i1 -> i2 -> IO a) = (i1, i2)
 
 -- The tasks are sane!
 runA :: IO A
-runA = undefined
+runA = pure A
 
 runB :: A -> IO B
-runB = undefined
+runB _ = pure B
 
 runC :: A -> IO C
-runC = undefined
+runC _ = pure C
 
 runD :: B -> C -> IO D
-runD = undefined
+runD _ _ = pure D
+
+runEnd :: A -> D -> IO ()
+runEnd a d = do
+  print a
+  print d
+  pure ()
 
 test :: IO ()
 test = do
-  let network = workflow :: Network (Proxy (A, D))
+  let network = workflow :: Network (Proxy ())
       deps = execWriter $ runNetwork network
+
   print deps
+
+  _ <- workflow :: IO (Identity ())
+  pure ()
