@@ -56,38 +56,53 @@ instance (Node a, Node b) => Node (a, b) where
 class GNode f where
   gnodeName :: f p -> [String]
 
--- instance (Datatype d) => GNode (M1 D d f) where
---   gnodeName m = [datatypeName m]
-
 instance (Datatype d) => GNode (D1 d f) where
   gnodeName m = [datatypeName m]
 
 -- instance (Node a, Node b, Node c) => Node (a, b, c) where
 --   nodeName _ = mconcat [nodeName @a Proxy, nodeName @b Proxy, nodeName @c Proxy]
 
+-- is there a cleaner way to do this?
+-- perhaps tasks could have inputs?
+-- a custom GADT now?
+
+data DAG a where
+  MakeA :: DAG A
+  MakeB :: A -> DAG B
+  MakeC :: A -> DAG C
+  MakeD :: B -> C -> DAG D
+  MakeF :: A -> D -> DAG Final
+
 workflow :: Flow Dataset m => m Final
 workflow = do
-  ta <- task0 runA
-  tb <- task1 runB ta
-  tc <- task1 runC ta
-  td <- task2 runD tb tc
-  task2 runEnd ta td
+  a <- run' MakeA
+  b <- run' $ MakeB a
+  c <- run' $ MakeC a
+  d <- run' $ MakeD b c
+  run' $ MakeF a d
 
-task0 :: (Node a, Flow r m) => Task r a -> m a
-task0 t = task (const t) ()
+run' :: Flow Dataset m => DAG a -> m a
+run' MakeA = run (const taskA) ()
+run' (MakeB a) = run taskB a
+run' (MakeC a) = run taskC a
+run' (MakeD b c) = run2 taskD b c
+run' (MakeF a d) = run2 taskEnd a d
 
-task1 :: (Node a, Node i, Flow r m) => (i -> Task r a) -> (i -> m a)
-task1 = task
+run0 :: (Node a, Flow r m) => Task r a -> m a
+run0 t = run (const t) ()
 
-task2 :: (Node a, Node i, Node v, Flow r m) => (i -> v -> Task r a) -> i -> v -> m a
-task2 t fi fv = task (uncurry t) (fi, fv)
+run1 :: (Node a, Node i, Flow r m) => (i -> Task r a) -> (i -> m a)
+run1 = run
+
+run2 :: (Node a, Node i, Node v, Flow r m) => (i -> v -> Task r a) -> i -> v -> m a
+run2 t fi fv = run (uncurry t) (fi, fv)
 
 class (Monad m) => Flow r m where
-  task :: (Node a, Node i) => (i -> Task r a) -> (i -> m a)
+  run :: (Node a, Node i) => (i -> Task r a) -> (i -> m a)
 
 instance Flow Dataset Network where
-  task :: forall a i. (Node a, Node i) => (i -> Task Dataset a) -> (i -> Network a)
-  task _ _ = do
+  run :: forall a i. (Node a, Node i) => (i -> Task Dataset a) -> (i -> Network a)
+  run _ _ = do
     let adp = nodeName @a Proxy
     let idp = nodeName @i Proxy
     traceM $ show ("Network", adp, idp)
@@ -101,29 +116,29 @@ instance Flow Dataset Network where
 
 instance Flow Dataset (Pipeline Dataset) where
   -- TODO: exception catching
-  -- TODO: caching
-  task :: forall a i. (Node a, Node i) => (i -> Task Dataset a) -> (i -> Pipeline Dataset a)
-  task t i = Pipeline $ ReaderT $ \ds -> do
+  -- TODO: caching, customizable store... Can use state easily. Hashable...
+  run :: forall a i. (Node a, Node i) => (i -> Task Dataset a) -> (i -> Pipeline Dataset a)
+  run t i = Pipeline $ ReaderT $ \ds -> do
     runTask (t i) ds
 
 dataset :: Task Dataset Dataset
 dataset = Task $ \ds -> pure ds
 
 -- TODO: Task type, instead of IO?
-runA :: Task Dataset A
-runA = pure A
+taskA :: Task Dataset A
+taskA = pure A
 
-runB :: A -> Task Dataset B
-runB _ = pure B
+taskB :: A -> Task Dataset B
+taskB _ = pure B
 
-runC :: A -> Task Dataset C
-runC _ = pure C
+taskC :: A -> Task Dataset C
+taskC _ = pure C
 
-runD :: B -> C -> Task Dataset D
-runD _ _ = pure D
+taskD :: B -> C -> Task Dataset D
+taskD _ _ = pure D
 
-runEnd :: A -> D -> Task Dataset Final
-runEnd a d = do
+taskEnd :: A -> D -> Task Dataset Final
+taskEnd a d = do
   ds <- dataset
   pure $ Final a d ds
 
