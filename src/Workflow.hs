@@ -49,33 +49,33 @@ add :: Int -> Int -> Int
 add a b = a + b
 
 -- which prevents me from doing anything specific to workflow
-instance Flow Calibrate (Workflow Dataset) where
-  step c = Workflow $ \r -> runCal c r
+-- instance Flow Calibrate (Workflow Dataset) where
+--   step c = Workflow $ \r -> runCal c r
+--
+-- -- we can't drop to workflow here...
+-- task :: (Show a, Flow dag m) => dag a -> m a
+-- task d = do
+--   step d
 
--- we can't drop to workflow here...
-task :: (Show a, Flow dag m) => dag a -> m a
-task d = do
-  step d
-
--- this is a member of workflow
-storeResult :: Show a => a -> Workflow Dataset ()
-storeResult a = Workflow $ \_ -> print a
-
--- This was the definition of step, I believe
--- step :: (RunTask m, Show a) => dag a -> m a
--- step s = toFlow $ \r -> do
---   a <- runFlow s r
---   print a
---   pure a
-
--- this works with ANY flow?
--- why is that any better?
--- it lets me specify sily things
--- don't need it. Specialize!
--- figure out another way to draw the graph
-workflow :: Flow Calibrate m => m Final
-workflow = do
-  sa <- step Begin
-  wl <- step (CalWavlengths sa)
-  p <- step CalPosition
-  step $ Finalize wl p
+-- -- this is a member of workflow
+-- storeResult :: Show a => a -> Workflow Dataset ()
+-- storeResult a = Workflow $ \_ -> print a
+--
+-- -- This was the definition of step, I believe
+-- -- step :: (RunTask m, Show a) => dag a -> m a
+-- -- step s = toFlow $ \r -> do
+-- --   a <- runFlow s r
+-- --   print a
+-- --   pure a
+--
+-- -- this works with ANY flow?
+-- -- why is that any better?
+-- -- it lets me specify sily things
+-- -- don't need it. Specialize!
+-- -- figure out another way to draw the graph
+-- workflow :: Flow Calibrate m => m Final
+-- workflow = do
+--   sa <- step Begin
+--   wl <- step (CalWavlengths sa)
+--   p <- step CalPosition
+--   step $ Finalize wl p

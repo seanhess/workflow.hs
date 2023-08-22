@@ -65,7 +65,7 @@ instance Task A Network where
 instance Task B Network where
   -- You still have to manully enter the dependencies!
   -- bullshit
-  runTask ia = do
+  runTask _ = do
     tell []
     return Proxy
 

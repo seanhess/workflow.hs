@@ -2,7 +2,6 @@
 
 module Flow where
 
-import Control.Applicative (Const (..))
 import Control.Monad.State.Lazy
 import Flow.Store
 
@@ -85,7 +84,7 @@ test = do
   result <- busy network B store
   print $ getValue B result
 
-  print $ dependencyGraph (network) B
+-- print $ dependencyGraph (network) B
 
 -- | Show the dependencies of a given node in the computation
 dependencies :: MonadFail m => Task k [k] -> m [k]

@@ -4,8 +4,10 @@
 
 module SimpleCustom where
 
-import Control.Exception (SomeException, bracket, catch, throwIO)
+import Control.Exception (SomeException, catch, throwIO)
 import Control.Monad.Identity (Identity (..))
+import Flow.Node
+import Types
 
 -- import Control.Monad.Reader
 import Control.Monad.Writer.Strict
@@ -13,7 +15,6 @@ import Debug.Trace
 
 -- import Data.Kind
 import Data.Proxy
-import GHC.Generics hiding (C, D)
 
 newtype Pipeline r s a = Pipeline {runPipeline :: r -> s -> IO (a, s)}
   deriving (Functor)
@@ -47,30 +48,6 @@ instance Monad (Task r) where
   ma >>= fmb = Task $ \r -> do
     a <- runTask ma r
     runTask (fmb a) r
-
-data A = A deriving (Show, Generic, Node)
-data B = B deriving (Show, Generic, Node)
-data C = C deriving (Show, Generic, Node)
-data D = D deriving (Show, Generic, Node)
-data Dataset = Dataset deriving (Show, Generic, Node)
-data Final = Final A D Dataset deriving (Show, Generic, Node)
-
-instance Node () where
-  nodeName _ = []
-
-class Node a where
-  nodeName :: Proxy a -> [String]
-  default nodeName :: (Generic a, GNode (Rep a)) => Proxy a -> [String]
-  nodeName _ = gnodeName (from (undefined :: a))
-
-instance (Node a, Node b) => Node (a, b) where
-  nodeName _ = mconcat [nodeName @a Proxy, nodeName @b Proxy]
-
-class GNode f where
-  gnodeName :: f p -> [String]
-
-instance (Datatype d) => GNode (D1 d f) where
-  gnodeName m = [datatypeName m]
 
 -- instance (Node a, Node b, Node c) => Node (a, b, c) where
 --   nodeName _ = mconcat [nodeName @a Proxy, nodeName @b Proxy, nodeName @c Proxy]

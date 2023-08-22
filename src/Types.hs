@@ -1,4 +1,9 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module Types where
+
+import Flow.Node
+import GHC.Generics (Generic)
 
 data SolarAtlas = SolarAtlas
 
@@ -8,13 +13,16 @@ data Wavelengths = Wavelengths
 data Position = Position
   deriving (Show)
 
-data Dataset = Dataset
-
-data Final = Final Wavelengths Position
-
 -- CUSTOM DAG TYPE ---
 data Calibrate a where
   Begin :: Calibrate SolarAtlas
   CalWavlengths :: SolarAtlas -> Calibrate Wavelengths
   CalPosition :: Calibrate Position
   Finalize :: Wavelengths -> Position -> Calibrate Final
+
+data A = A deriving (Show, Generic, Node)
+data B = B deriving (Show, Generic, Node)
+data C = C deriving (Show, Generic, Node)
+data D = D deriving (Show, Generic, Node)
+data Dataset = Dataset deriving (Show, Generic, Node)
+data Final = Final A D Dataset deriving (Show, Generic, Node)

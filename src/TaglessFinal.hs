@@ -1,7 +1,5 @@
 module TaglessFinal where
 
-import Data.Proxy
-
 data A = A deriving (Show)
 data B = B deriving (Show)
 data C = C deriving (Show)
@@ -38,8 +36,10 @@ instance Workflow IO where
     putStrLn $ "Executing D: " <> show b <> " " <> show c
     return D
 
+newtype Node = Node String
 type Graph = [(Node, Node)]
 
+--
 data Network a where
   Network :: Graph -> Network a
 
@@ -52,17 +52,19 @@ instance Applicative Network where
   pure _ = Network mempty
   Network g <*> Network g2 = Network (g <> g2)
 
--- we are given a function that expects an a! We can't produce an A
--- can we use default instances?
+--
+-- -- we are given a function that expects an a! We can't produce an A
+-- -- can we use default instances?
 instance Monad Network where
   (>>=) :: forall a b. Network a -> (a -> Network b) -> Network b
-  Network ga >>= fnb =
-    -- we know 'a' will never be read
-    -- for it to be automatic, it has to happen here
-    let Network gb = fnb undefined
-        fromNode = Node (undefined :: a)
-        toNode = Node (undefined :: b)
-     in Network $ (fromNode, toNode) : ga <> gb
+  Network _ >>= _ = undefined
+
+-- we know 'a' will never be read
+-- for it to be automatic, it has to happen here
+-- let Network gb = fnb undefined
+--     fromNode = Node (undefined :: a)
+--     toNode = Node (undefined :: b)
+--  in Network $ (fromNode, toNode) : ga <> gb
 
 -- in my type we don't actually carry A and B around?
 -- I can't enforce it!
