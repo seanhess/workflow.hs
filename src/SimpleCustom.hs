@@ -1,59 +1,71 @@
 {-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DerivingVia #-}
 
 module SimpleCustom where
 
 import Control.Monad.Identity (Identity (..))
+import Control.Monad.Reader
 import Control.Monad.Writer.Strict
+import Debug.Trace
 
 -- import Data.Kind
 import Data.Proxy
+import GHC.Generics hiding (C, D)
 
-newtype Custom r a = Custom {runCustom :: r -> IO a}
-  deriving (Functor)
-
-instance Applicative (Custom r) where
-  pure a = Custom (\_ -> pure a)
-  mf <*> ma = Custom $ \r -> do
-    f <- runCustom mf r
-    a <- runCustom ma r
-    pure (f a)
-
-instance Monad (Custom r) where
-  ma >>= fmb = Custom $ \r -> do
-    a <- runCustom ma r
-    runCustom (fmb a) r
+newtype Pipeline r a = Pipeline {runPipeline :: ReaderT r IO a}
+  deriving newtype (Functor, Applicative, Monad, MonadReader r)
 
 newtype Network a = Network {runNetwork :: Writer [(String, String)] a}
-  deriving (Functor, Applicative, Monad, MonadWriter [(String, String)])
+  deriving newtype (Functor, Applicative, Monad, MonadWriter [(String, String)])
 
-data A = A deriving (Show)
-data B = B deriving (Show)
-data C = C deriving (Show)
-data D = D deriving (Show)
-data Dataset = Dataset deriving (Show)
+newtype Task r a = Task {runTask :: r -> IO a}
+  deriving (Functor)
 
-class Node a where
-  nodeName :: Proxy a -> [String]
+instance Applicative (Task r) where
+  pure a = Task (\_ -> pure a)
+  mf <*> ma = Task $ \r -> do
+    f <- runTask mf r
+    a <- runTask ma r
+    pure (f a)
 
-instance Node A where
-  nodeName _ = ["A"]
+instance Monad (Task r) where
+  ma >>= fmb = Task $ \r -> do
+    a <- runTask ma r
+    runTask (fmb a) r
 
-instance Node B where
-  nodeName _ = ["B"]
-
-instance Node C where
-  nodeName _ = ["C"]
-
-instance Node D where
-  nodeName _ = ["D"]
+data A = A deriving (Show, Generic, Node)
+data B = B deriving (Show, Generic, Node)
+data C = C deriving (Show, Generic, Node)
+data D = D deriving (Show, Generic, Node)
+data Dataset = Dataset deriving (Show, Generic, Node)
+data Final = Final A D Dataset deriving (Show, Generic, Node)
 
 instance Node () where
   nodeName _ = []
 
+class Node a where
+  nodeName :: Proxy a -> [String]
+  default nodeName :: (Generic a, GNode (Rep a)) => Proxy a -> [String]
+  nodeName _ = gnodeName (from (undefined :: a))
+
 instance (Node a, Node b) => Node (a, b) where
   nodeName _ = mconcat [nodeName @a Proxy, nodeName @b Proxy]
 
-workflow :: Flow Dataset m => m ()
+class GNode f where
+  gnodeName :: f p -> [String]
+
+-- instance (Datatype d) => GNode (M1 D d f) where
+--   gnodeName m = [datatypeName m]
+
+instance (Datatype d) => GNode (D1 d f) where
+  gnodeName m = [datatypeName m]
+
+-- instance (Node a, Node b, Node c) => Node (a, b, c) where
+--   nodeName _ = mconcat [nodeName @a Proxy, nodeName @b Proxy, nodeName @c Proxy]
+
+workflow :: Flow Dataset m => m Final
 workflow = do
   ta <- task0 runA
   tb <- task1 runB ta
@@ -61,23 +73,24 @@ workflow = do
   td <- task2 runD tb tc
   task2 runEnd ta td
 
-task0 :: (Node a, Flow r m) => (r -> IO a) -> m a
+task0 :: (Node a, Flow r m) => Task r a -> m a
 task0 t = task (const t) ()
 
-task1 :: (Node a, Node i, Flow r m) => (i -> r -> IO a) -> (i -> m a)
+task1 :: (Node a, Node i, Flow r m) => (i -> Task r a) -> (i -> m a)
 task1 = task
 
-task2 :: (Node a, Node i, Node v, Flow r m) => (i -> v -> r -> IO a) -> i -> v -> m a
+task2 :: (Node a, Node i, Node v, Flow r m) => (i -> v -> Task r a) -> i -> v -> m a
 task2 t fi fv = task (uncurry t) (fi, fv)
 
 class (Monad m) => Flow r m where
-  task :: (Node a, Node i) => (i -> r -> IO a) -> (i -> m a)
+  task :: (Node a, Node i) => (i -> Task r a) -> (i -> m a)
 
 instance Flow Dataset Network where
-  task :: forall a i. (Node a, Node i) => (i -> Dataset -> IO a) -> (i -> Network a)
+  task :: forall a i. (Node a, Node i) => (i -> Task Dataset a) -> (i -> Network a)
   task _ _ = do
     let adp = nodeName @a Proxy
     let idp = nodeName @i Proxy
+    traceM $ show ("Network", adp, idp)
     tell $ [(ni, na) | na <- adp, ni <- idp]
 
     -- WARNING: use undefined instead of requiring Flow to return a functor
@@ -86,38 +99,42 @@ instance Flow Dataset Network where
 
 -- pure Proxy
 
-instance Flow Dataset (Custom Dataset) where
+instance Flow Dataset (Pipeline Dataset) where
   -- TODO: exception catching
   -- TODO: caching
-  task :: forall a i. (Node a, Node i) => (i -> Dataset -> IO a) -> (i -> Custom Dataset a)
-  task t i = Custom $ t i
+  task :: forall a i. (Node a, Node i) => (i -> Task Dataset a) -> (i -> Pipeline Dataset a)
+  task t i = Pipeline $ ReaderT $ \ds -> do
+    runTask (t i) ds
+
+dataset :: Task Dataset Dataset
+dataset = Task $ \ds -> pure ds
 
 -- TODO: Task type, instead of IO?
-runA :: Dataset -> IO A
-runA _ = pure A
+runA :: Task Dataset A
+runA = pure A
 
-runB :: A -> Dataset -> IO B
-runB _ _ = pure B
+runB :: A -> Task Dataset B
+runB _ = pure B
 
-runC :: A -> Dataset -> IO C
-runC _ _ = pure C
+runC :: A -> Task Dataset C
+runC _ = pure C
 
-runD :: B -> C -> Dataset -> IO D
-runD _ _ _ = pure D
+runD :: B -> C -> Task Dataset D
+runD _ _ = pure D
 
-runEnd :: A -> D -> Dataset -> IO ()
-runEnd a d ds = do
-  print a
-  print d
-  print ds
-  pure ()
+runEnd :: A -> D -> Task Dataset Final
+runEnd a d = do
+  ds <- dataset
+  pure $ Final a d ds
 
 test :: IO ()
 test = do
-  let network = workflow :: Network ()
+  let network = workflow :: Network Final
       deps = execWriter $ runNetwork network
 
   print deps
 
-  _ <- runCustom (workflow :: Custom Dataset ()) Dataset
+  let pipe = workflow :: Pipeline Dataset Final
+  res <- runReaderT (runPipeline pipe) Dataset
+  print res
   pure ()
