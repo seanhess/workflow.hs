@@ -66,6 +66,9 @@ library
         FindAType,
         Applicatives,
         TaglessFinal,
+        SimpleCustom,
+        Flow,
+        Flow.Store,
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -79,7 +82,8 @@ library
         base ^>=4.16.4.0,
         data-default,
         mtl,
-        containers
+        containers,
+
 
     -- Directories containing source files.
     hs-source-dirs:   src
