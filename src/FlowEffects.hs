@@ -1,34 +1,83 @@
 module FlowEffects where
 
+-- import Data.Kind
 import Data.Proxy
 import Effectful
 import Effectful.Dispatch.Dynamic
+
+-- import Effectful.Reader.Dynamic
 import Effectful.Writer.Dynamic
 import Flow.Node
 import Types
 
-newtype Task r inp a = Task {runTask :: r -> IO a}
+-- it depends on previous steps!
+-- newtype Task inp a = Task {runTask :: forall es. Reader Dataset :> es => inp -> Eff es a}
+newtype Task inp a = Task {runTask :: Dataset -> inp -> IO a}
 
-data Flow r :: Effect where
+data Flow :: Effect where
   -- the ONLY thing it can do is run tasks
   -- that IS easy to write!
-  RunTask :: (Node a, Node inp) => Task r inp a -> Flow r m a
+  RunTask :: (Node a, Node inp) => Task inp a -> inp -> Flow m a
 
-type instance DispatchOf (Flow r) = 'Dynamic
+type instance DispatchOf Flow = 'Dynamic
 
-workflow :: (Flow Dataset :> es) => Eff es Final
+-- TODO: I want workflow to look like this! Really easy to see the network
+workflow :: (Flow :> es) => Eff es Final
 workflow = do
-  a <- run $ task (const execA) ()
-  b <- run $ task execB a
-  c <- run $ task execC a
-  d <- run $ task (uncurry execD) (b, c)
-  run $ task (uncurry execEnd) (a, d)
+  a <- stepA
+  b <- stepB a
+  c <- stepC a
+  d <- stepD b c
+  stepEnd a d
 
-run :: (Node a, Node inp, Flow r :> es) => Task r inp a -> Eff es a
-run t = send $ RunTask t
+stepA :: Flow :> es => Eff es A
+stepA = run (\_ _ -> execA) ()
+ where
+  execA :: IO A
+  execA = pure A
 
-task :: (Node a, Node inp) => (inp -> r -> IO a) -> inp -> Task r inp a
-task exec i = Task (exec i)
+stepB :: Flow :> es => A -> Eff es B
+stepB = run (\_ a -> execB a)
+ where
+  execB :: A -> IO B
+  execB _ = pure B
+
+stepC :: Flow :> es => A -> Eff es C
+stepC = run (\_ a -> execC a)
+ where
+  execC :: A -> IO C
+  execC _ = pure C
+
+stepD :: Flow :> es => B -> C -> Eff es D
+stepD b c = run (\_ -> uncurry execD) (b, c)
+ where
+  execD :: B -> C -> IO D
+  execD _ _ = pure D
+
+stepEnd :: Flow :> es => A -> D -> Eff es Final
+stepEnd = curry $ run (\ds (a, d) -> execEnd a d ds)
+ where
+  execEnd :: A -> D -> Dataset -> IO Final
+  execEnd a d ds = do
+    pure $ Final a d ds
+
+run :: (Node a, Node inp, Flow :> es) => (Dataset -> inp -> IO a) -> inp -> Eff es a
+run ft i = send $ RunTask (Task ft) i
+
+-- where
+--   task :: (Node a, Node inp, ToTask inp) =>  -> inp -> Task inp a
+--   task exec i = Task (toTask exec i)
+
+--
+-- type family Input a :: Type where
+--   Input (r -> IO a) = ()
+--   Input (i -> r -> IO a) = i
+--   Input (i -> v -> r -> IO a) = (i, v)
+
+-- type family Input a :: Type where
+--   Input () = ()
+--   Input (i -> r -> IO a) = i
+--   Input (i -> v -> r -> IO a) = (i, v)
 
 -- run0 :: (Node a, Flow r :> es) => Task r a -> Eff es a
 -- run0 t = run (const t) ()
@@ -38,41 +87,27 @@ task exec i = Task (exec i)
 --
 -- run2 :: (Node a, Node i, Node v, Flow r :> es) => (i -> v -> Task r a) -> i -> v -> Eff es a
 -- run2 t i v = run (uncurry t) (i, v)
-
--- these are IO functions, not tasks!
-execA :: Dataset -> IO A
-execA _ = pure A
-
-execB :: A -> Dataset -> IO B
-execB _ _ = pure B
-
-execC :: A -> Dataset -> IO C
-execC _ _ = pure C
-
-execD :: B -> C -> Dataset -> IO D
-execD _ _ _ = pure D
-
-execEnd :: A -> D -> Dataset -> IO Final
-execEnd a d ds = do
-  pure $ Final a d ds
+--
+-- task' :: exec -> Task r (Input exec a) a
+-- task' = _
 
 runFlowIO ::
   (IOE :> es) =>
-  r ->
-  Eff (Flow r : es) a ->
+  Dataset ->
+  Eff (Flow : es) a ->
   Eff es a
-runFlowIO r = interpret $ \_ (RunTask (Task t)) -> do
-  liftIO $ t r
+runFlowIO ds = interpret $ \_ (RunTask (Task ft) i) -> do
+  liftIO $ ft ds i
 
 runFlowNetwork ::
-  forall r es a.
+  forall es a.
   (IOE :> es) =>
-  Eff (Flow r : es) a ->
+  Eff (Flow : es) a ->
   Eff es DAG
-runFlowNetwork = reinterpret (execWriterLocal @DAG) $ \_ (RunTask t) -> do
+runFlowNetwork = reinterpret (execWriterLocal @DAG) $ \_ (RunTask t _) -> do
   runTaskNetwork t
 
-runTaskNetwork :: forall a inp r es. (Node a, Node inp, Writer DAG :> es) => (Task r inp a) -> Eff es a
+runTaskNetwork :: forall a inp es. (Node a, Node inp, Writer DAG :> es) => Task inp a -> Eff es a
 runTaskNetwork _ = do
   let adp = nodeName @a Proxy
   let idp = nodeName @inp Proxy
@@ -90,6 +125,6 @@ test = do
   f <- runEff $ runFlowIO Dataset workflow
   print ("FINAL", f)
 
-  d <- runEff $ runFlowNetwork @Dataset workflow
+  d <- runEff $ runFlowNetwork workflow
   putStrLn "NETWORK"
   print d

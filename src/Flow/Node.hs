@@ -16,6 +16,9 @@ class Node a where
 instance (Node a, Node b) => Node (a, b) where
   nodeName _ = mconcat [nodeName @a Proxy, nodeName @b Proxy]
 
+instance (Node a, Node b, Node c) => Node (a, b, c) where
+  nodeName _ = mconcat [nodeName @a Proxy, nodeName @b Proxy, nodeName @c Proxy]
+
 class GNode f where
   gnodeName :: f p -> [String]
 
