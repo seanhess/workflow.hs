@@ -6,7 +6,7 @@ module Workflow where
 import Types
 
 -- import Data.Data (Data)
-
+--
 data Workflow r a where
   Workflow :: (r -> IO a) -> Workflow r a
 
@@ -39,7 +39,7 @@ runCal :: Calibrate a -> Dataset -> IO a
 runCal Begin _ = pure SolarAtlas
 runCal (CalWavlengths _) _ = pure Wavelengths
 runCal CalPosition _ = pure Position
-runCal (Finalize wl pos) _ = pure $ Final wl pos
+runCal (Finalize wl pos) _ = pure $ Final' wl pos
 
 runCalWorkflow :: Calibrate a -> Workflow Dataset a
 runCalWorkflow c = Workflow (runCal c)
@@ -47,6 +47,7 @@ runCalWorkflow c = Workflow (runCal c)
 -- >>> add 2 3
 add :: Int -> Int -> Int
 add a b = a + b
+
 
 -- which prevents me from doing anything specific to workflow
 -- instance Flow Calibrate (Workflow Dataset) where

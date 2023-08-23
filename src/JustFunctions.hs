@@ -24,12 +24,12 @@ task f = Workflow $ ReaderT f
 newtype Workflow r a = Workflow {runWorkflow :: ReaderT r IO a}
   deriving (Functor, Applicative, Monad, MonadReader r)
 
-workflow :: Workflow Dataset Final
+workflow :: Workflow Dataset Final'
 workflow = do
   atlas <- task taskAtlas
   pos <- task taskPosition
   wl <- task $ taskWavelengths atlas
-  pure $ Final wl pos
+  pure $ Final' wl pos
 
 ------------------------------------
 
@@ -48,12 +48,12 @@ data Dag inp a where
   Dep2 :: String -> (Dag x a, Dag y b) -> Dag (a, b) c
 
 -- Yeah this worked!
-network :: Dag Final Final
+network :: Dag Final' Final'
 network =
   let wavelengths = Dep1 "Wavelengths" solarAtlas :: Dag SolarAtlas Wavelengths
       solarAtlas = Dep0 "SolarAtlas" :: Dag () SolarAtlas
       position = Dep0 "Position" :: Dag () Position
-      finalize = Dep2 "Finalize" (wavelengths, position) :: Dag (Wavelengths, Position) Final
+      finalize = Dep2 "Finalize" (wavelengths, position) :: Dag (Wavelengths, Position) Final'
    in Dep1 "End" finalize
 
 -- data Comp inp a b = Dag inp a :> Dag a b

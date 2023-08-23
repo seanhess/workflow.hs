@@ -18,7 +18,9 @@ data Calibrate a where
   Begin :: Calibrate SolarAtlas
   CalWavlengths :: SolarAtlas -> Calibrate Wavelengths
   CalPosition :: Calibrate Position
-  Finalize :: Wavelengths -> Position -> Calibrate Final
+  Finalize :: Wavelengths -> Position -> Calibrate Final'
+
+data Final' = Final' Wavelengths Position
 
 data A = A deriving (Show, Generic, Node)
 data B = B deriving (Show, Generic, Node)

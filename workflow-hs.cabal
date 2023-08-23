@@ -69,6 +69,7 @@ library
         SimpleCustom,
         Flow,
         Flow.Store,
+        Flow.Node,
         Effects,
 
     -- Modules included in this library but not exported.

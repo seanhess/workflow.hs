@@ -42,23 +42,3 @@ doStuff = do
 test :: IO ()
 test = do
   runEff . runDebugIO . runFileSystemIO $ doStuff
-
-
-runFlowNetwork ::
-  (IOE :> es) =>
-  r ->
-  Eff (Flow r : es) a ->
-  Eff es a
-runFlowNetwork _ = interpret $ \_ (RunTask t i) -> do
-  runTask t i
- where
-  runTask :: forall a i r es. (Node a, Node i, Writer DAG :> es) => (i -> Task r a) -> i -> Eff es a
-  runTask _ _ = do
-    let adp = nodeName @a Proxy
-    let idp = nodeName @i Proxy
-    tell $ [(ni, na) | na <- adp, ni <- idp]
-
-    -- WARNING: use undefined instead of requiring Flow to return a functor
-    -- if necessary we could use defaults instead
-    pure $ error "Network should not evaluate values"
-

@@ -1,4 +1,8 @@
-module MyLib (someFunc) where
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+
+module MyLib where
+
+import FlowEffects
 
 someFunc :: IO ()
-someFunc = putStrLn "someFunc"
+someFunc = putStrLn "someFunc woot!!"
