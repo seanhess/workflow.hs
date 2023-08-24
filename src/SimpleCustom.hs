@@ -81,22 +81,22 @@ run' (MakeF a d) = run2 taskEnd a d
 run0 :: (Node a, Flow r m) => Task r a -> m a
 run0 t = run (const t) ()
 
-run1 :: (Node a, Node i, Flow r m) => (i -> Task r a) -> (i -> m a)
+run1 :: (Node a, Input i, Flow r m) => (i -> Task r a) -> (i -> m a)
 run1 = run
 
 run2 :: (Node a, Node i, Node v, Flow r m) => (i -> v -> Task r a) -> i -> v -> m a
 run2 t fi fv = run (uncurry t) (fi, fv)
 
 class (Monad m) => Flow r m where
-  run :: (Node a, Node i) => (i -> Task r a) -> (i -> m a)
+  run :: (Node a, Input i) => (i -> Task r a) -> (i -> m a)
 
 instance Flow Dataset Network where
-  run :: forall a i. (Node a, Node i) => (i -> Task Dataset a) -> (i -> Network a)
+  run :: forall a i. (Node a, Input i) => (i -> Task Dataset a) -> (i -> Network a)
   run _ _ = do
     let adp = nodeName @a Proxy
-    let idp = nodeName @i Proxy
+    let idp = nodeNames @i Proxy
     traceM $ show ("Network", adp, idp)
-    tell $ [(ni, na) | na <- adp, ni <- idp]
+    tell $ [(ni, adp) | ni <- idp]
 
     -- WARNING: use undefined instead of requiring Flow to return a functor
     -- if necessary we could use defaults instead
@@ -105,9 +105,9 @@ instance Flow Dataset Network where
 instance Flow Dataset (Pipeline Dataset s) where
   -- TODO: exception catching. I want to crash the FLOW, not the entire program. Maybe I should move the handler
   -- TODO: caching, customizable store... Can use state easily. Hashable...
-  run :: forall a i. (Node a, Node i) => (i -> Task Dataset a) -> (i -> Pipeline Dataset s a)
+  run :: forall a i. (Node a, Input i) => (i -> Task Dataset a) -> (i -> Pipeline Dataset s a)
   run t i = Pipeline $ \ds s -> do
-    putStrLn $ "RUNNING: " <> mconcat (nodeName @a Proxy)
+    putStrLn $ "RUNNING: " <> nodeName @a Proxy
     -- mc <- cached @s Proxy s
     -- case mc of
     --   Just c -> return (c, s)
