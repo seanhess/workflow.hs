@@ -22,9 +22,9 @@ data Calibrate a where
 
 data Final' = Final' Wavelengths Position
 
-data A = A deriving (Show, Generic, Node)
-data B = B deriving (Show, Generic, Node)
-data C = C deriving (Show, Generic, Node)
-data D = D deriving (Show, Generic, Node)
-data Dataset = Dataset deriving (Show, Generic, Node)
-data Final = Final A D Dataset deriving (Show, Generic, Node)
+data A = A deriving (Show, Generic, Node, Input)
+data B = B deriving (Show, Generic, Node, Input)
+data C = C deriving (Show, Generic, Node, Input)
+data D = D deriving (Show, Generic, Node, Input)
+data Dataset = Dataset String deriving (Show, Generic, Node, Input)
+data Final = Final A D Dataset deriving (Show, Generic, Node, Input)

@@ -67,6 +67,7 @@ library
         Applicatives,
         TaglessFinal,
         SimpleCustom,
+        FlowEffects,
         Flow,
         Flow.Store,
         Flow.Node,
