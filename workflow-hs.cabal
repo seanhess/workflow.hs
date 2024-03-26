@@ -76,10 +76,10 @@ library
     -- Modules included in this library but not exported.
     -- other-modules:
 
-    -- LANGUAGE extensions used by modules in this package.
+    -- language extensions used by modules in this package.
     default-extensions:
-        TypeFamilies
-        DataKinds
+        typefamilies
+        datakinds
 
     -- Other library packages from which modules are imported.
     build-depends:
